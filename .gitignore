@@ -1,0 +1,36 @@
+# Pastas geradas automaticamente pela Unity (NÃO ENVIAR)
+/[Ll]ibrary/
+/[Tt]emp/
+/[Ob]j/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+*.slnx
+
+# Arquivos temporários do Visual Studio e IDEs
+.vs/
+.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.VC.db
+
+# Executáveis da Build do Jogo
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db
