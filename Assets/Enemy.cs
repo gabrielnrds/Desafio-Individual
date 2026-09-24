@@ -72,9 +72,11 @@ public class InimigoSeguidor : MonoBehaviour
         // Se tocar no Player via colisão física, reseta o jogo
         if (collision.gameObject.CompareTag("Player"))
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene(
-                UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
-            );
+            // Em vez de recarregar a cena direto, chama o painel de Game Over
+            if (MenuManager.Instance != null)
+            {
+                MenuManager.Instance.ExibirGameOver();
+            }       
         }
     }
 

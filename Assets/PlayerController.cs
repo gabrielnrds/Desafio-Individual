@@ -12,12 +12,23 @@ public class PlayerController : MonoBehaviour
     public float groundCheckRadius = 0.2f;
     public LayerMask groundLayer;
 
-    [Header("Ação: Tiro")]
+    [Header("Sistema de Munição")]
+    public int municaoAtual = 20;
+    public int municaoMaxima = 30;
+
+    [Header("Ação Especial: Sobrecarga")]
+    public int custoMuniConsumoEspecial = 5;
+    public float tempoCooldownEspecial = 2.5f;
+    public float anguloEspalhamento = 15f; // Ângulo das balas laterais
+    private bool especialEmCooldown = false;
+
+    [Header("Ação: Tiro Normal")]
     public GameObject projetilPrefab;
     public Transform pontoDisparo;
     public float cooldownTiro = 0.3f;
     private float ultimoTiro;
-    public float alturaTiro = 0.5f; // <--- ADICIONE ESTA LINHA (Ajusta a altura do peito)
+    public float alturaTiro = 0.5f;
+    public float raioPontoDisparo = 0.8f;
 
     [Header("Ação: Dash")]
     public float velocidadeDash = 20f;
@@ -28,16 +39,13 @@ public class PlayerController : MonoBehaviour
 
     [Header("Ação: Mina")]
     public GameObject minaPrefab;
-    public Transform pontoMina; // Ponto nos pés onde a mina é colocada
+    public Transform pontoMina;
     public float cooldownMina = 2f;
     private float ultimaMina;
 
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
-
-    // Distância do ponto de disparo em relação ao centro do player
-    public float raioPontoDisparo = 0.8f;
 
     private float horizontalInput;
     private bool isGrounded;
@@ -53,19 +61,16 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        // Se estiver executando o Dash, bloqueia os outros comandos
         if (estaEmDash) return;
 
         // 1. Leitura de Entrada de Movimento
         horizontalInput = Input.GetAxisRaw("Horizontal");
 
-       // Atualiza a direção que o personagem está olhando e ajusta o PontoDisparo
         if (horizontalInput > 0)
         {
             direcaoOlhando = 1f;
             spriteRenderer.flipX = false;
 
-            // Move o ponto de disparo para a direita do personagem
             if (pontoDisparo != null)
             {
                 pontoDisparo.localPosition = new Vector3(Mathf.Abs(pontoDisparo.localPosition.x), pontoDisparo.localPosition.y, 0f);
@@ -76,7 +81,6 @@ public class PlayerController : MonoBehaviour
             direcaoOlhando = -1f;
             spriteRenderer.flipX = true;
 
-            // Espelha o ponto de disparo para a esquerda do personagem
             if (pontoDisparo != null)
             {
                 pontoDisparo.localPosition = new Vector3(-Mathf.Abs(pontoDisparo.localPosition.x), pontoDisparo.localPosition.y, 0f);
@@ -91,36 +95,40 @@ public class PlayerController : MonoBehaviour
             animator.SetFloat("Speed", Mathf.Abs(horizontalInput));
             animator.SetBool("OnGround", isGrounded);
 
-            // Identifica as teclas de mira ativas no frame
             bool segurandoW = Input.GetKey(KeyCode.W);
             bool segurandoQ = Input.GetKey(KeyCode.Q);
             bool segurandoE = Input.GetKey(KeyCode.E);
 
-            // Define a mira vertical e diagonal para o Animator
             animator.SetFloat("AimY", segurandoW || segurandoQ || segurandoE ? 1f : 0f);
             animator.SetBool("IsDiagonal", (segurandoQ || segurandoE) && isGrounded);
         }
 
-        // 3. Pulo (Barra de Espaço)
+        // 3. Pulo
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
             jumpRequested = true;
         }
 
-        // 4. Tecla do Dash (Shift Esquerdo ou Botão de Fire2)
+        // 4. Dash
         if (Input.GetKeyDown(KeyCode.LeftShift) && podeFazerDash)
         {
             StartCoroutine(ExecutarDash());
         }
 
-        // 5. Tecla do Tiro (Tecla J ou Botão de Fire1 / Clique Esquerdo)
-        if ((Input.GetKeyDown(KeyCode.J) || Input.GetMouseButtonDown(0)) && Time.time >= ultimoTiro + cooldownTiro)
+        // 5. Tiro Normal (Botão Esquerdo / Tecla J)
+        if ((Input.GetKeyDown(KeyCode.J) || Input.GetMouseButtonDown(0)) && Time.time >= ultimoTiro + cooldownTiro && !especialEmCooldown)
         {
-            Atirar();
+            AtirarNormal();
             ultimoTiro = Time.time;
         }
 
-        // 6. Tecla para Plantar Mina (Tecla F)
+        // 6. Tiro Especial - Sobrecarga (Botão Direito / Tecla K)
+        if ((Input.GetKeyDown(KeyCode.K) || Input.GetMouseButtonDown(1)) && !especialEmCooldown)
+        {
+            AtirarEspecial();
+        }
+
+        // 7. Plantar Mina (Tecla F)
         if (Input.GetKeyDown(KeyCode.F))
         {
             if (Time.time >= ultimaMina + cooldownMina && isGrounded)
@@ -144,37 +152,77 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void Atirar()
+    void AtirarNormal()
+    {
+        if (municaoAtual <= 0)
+        {
+            Debug.Log("Sem munição!");
+            return;
+        }
+
+        Vector2 direcaoTiro = ObterDirecaoTiro();
+        if (direcaoTiro == Vector2.zero) return;
+
+        municaoAtual--; // Desconta 1 de munição
+
+        InstanciarBala(direcaoTiro);
+
+        if (animator != null)
+        {
+            animator.SetTrigger("IsShooting");
+        }
+    }
+
+    void AtirarEspecial()
+    {
+        if (municaoAtual < custoMuniConsumoEspecial)
+        {
+            Debug.Log("Munição insuficiente para o Tiro Especial!");
+            return;
+        }
+
+        Vector2 direcaoBase = ObterDirecaoTiro();
+        if (direcaoBase == Vector2.zero) return;
+
+        municaoAtual -= custoMuniConsumoEspecial; // Desconta 5 de munição
+
+        // Dispara 3 projéteis (Central, Esquerda e Direita)
+        InstanciarBala(direcaoBase);
+        InstanciarBala(Quaternion.Euler(0, 0, anguloEspalhamento) * direcaoBase);
+        InstanciarBala(Quaternion.Euler(0, 0, -anguloEspalhamento) * direcaoBase);
+
+        // Aplica a punição de sobrecarga (cooldown longo que trava armas)
+        StartCoroutine(RotinaCooldownEspecial());
+
+        if (animator != null)
+        {
+            animator.SetTrigger("IsShooting");
+        }
+    }
+
+    void InstanciarBala(Vector2 direcao)
     {
         if (projetilPrefab == null || pontoDisparo == null) return;
 
-        // Calcula o vetor de direção com base nas regras do jogo
-        Vector2 direcaoTiro = ObterDirecaoTiro();
-
-        // Se a combinação de teclas for inválida para o momento, não atira
-        if (direcaoTiro == Vector2.zero) return;
-
-        // Calcula a posição do tiro considerando a altura do peito no eixo Y
-        Vector3 offsetLocal = (Vector3)direcaoTiro * raioPontoDisparo;
+        Vector3 offsetLocal = (Vector3)direcao.normalized * raioPontoDisparo;
         offsetLocal.y += alturaTiro;
 
         pontoDisparo.localPosition = offsetLocal;
 
-        // Instancia a bala
         GameObject bala = Instantiate(projetilPrefab, pontoDisparo.position, Quaternion.identity);
         Projetil scriptBala = bala.GetComponent<Projetil>();
 
         if (scriptBala != null)
         {
-            scriptBala.Setup(direcaoTiro);
+            scriptBala.Setup(direcao.normalized);
         }
-        
-        // Dispara a animação correspondente ao tipo de tiro
-        if (animator != null)
-        {
-            animator.SetTrigger("IsShooting"); 
-            // Ou se usar Bool: StartCoroutine(ResetShootingBool());
-        }
+    }
+
+    IEnumerator RotinaCooldownEspecial()
+    {
+        especialEmCooldown = true;
+        yield return new WaitForSeconds(tempoCooldownEspecial);
+        especialEmCooldown = false;
     }
 
     Vector2 ObterDirecaoTiro()
@@ -184,32 +232,16 @@ public class PlayerController : MonoBehaviour
         bool segurandoE = Input.GetKey(KeyCode.E);
         bool estaMovimentando = Mathf.Abs(horizontalInput) > 0.1f;
 
-        // Regra 1: Atirar Para Cima (Tecla W) - APENAS parado (no chão ou no ar)
-        if (segurandoW && !estaMovimentando)
-        {
-            return Vector2.up; // (0, 1)
-        }
+        if (segurandoW && !estaMovimentando) return Vector2.up;
+        if (segurandoQ && isGrounded) return new Vector2(-1f, 1f).normalized;
+        if (segurandoE && isGrounded) return new Vector2(1f, 1f).normalized;
 
-        // Regra 2: Atirar na Diagonal Esquerda (Tecla Q) - Não permitido no ar
-        if (segurandoQ && isGrounded)
-        {
-            return new Vector2(-1f, 1f).normalized; // (-0.71, 0.71)
-        }
-
-        // Regra 3: Atirar na Diagonal Direita (Tecla E) - Não permitido no ar
-        if (segurandoE && isGrounded)
-        {
-            return new Vector2(1f, 1f).normalized; // (0.71, 0.71)
-        }
-
-        // Regra Padrão: Se NENHUMA tecla de mira for pressionada, atira reto para a direção atual
         return new Vector2(direcaoOlhando, 0f);
     }
 
     void PlantarMina()
     {
         if (minaPrefab == null) return;
-
         Vector3 posicaoMina = pontoMina != null ? pontoMina.position : transform.position;
         Instantiate(minaPrefab, posicaoMina, Quaternion.identity);
     }
@@ -220,9 +252,8 @@ public class PlayerController : MonoBehaviour
         estaEmDash = true;
 
         float gravidadeOriginal = rb.gravityScale;
-        rb.gravityScale = 0f; // Anula a gravidade temporariamente para o dash ser retilíneo
+        rb.gravityScale = 0f;
         
-        // Aplica o impulso na direção para onde está olhando
         rb.linearVelocity = new Vector2(direcaoOlhando * velocidadeDash, 0f);
 
         yield return new WaitForSeconds(duracaoDash);
@@ -232,6 +263,11 @@ public class PlayerController : MonoBehaviour
 
         yield return new WaitForSeconds(cooldownDash);
         podeFazerDash = true;
+    }
+
+    public void AdicionarMunicao(int quantidade)
+    {
+        municaoAtual = Mathf.Min(municaoAtual + quantidade, municaoMaxima);
     }
 
     private void OnDrawGizmosSelected()

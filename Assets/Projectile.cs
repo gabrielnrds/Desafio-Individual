@@ -15,11 +15,8 @@ public class Projetil : MonoBehaviour
     public void Setup(Vector2 direcao)
     {
         rb = GetComponent<Rigidbody2D>();
-        
-        // Aplica a velocidade no vetor recebido
         rb.linearVelocity = direcao * velocidade;
 
-        // Calcula o ângulo em graus para girar a sprite da bala na direção do vetor
         float angulo = Mathf.Atan2(direcao.y, direcao.x) * Mathf.Rad2Deg;
         transform.rotation = Quaternion.Euler(0, 0, angulo);
     }
@@ -28,11 +25,23 @@ public class Projetil : MonoBehaviour
     {
         if (collision.CompareTag("Inimigo"))
         {
+            // Acertou o inimigo: incrementa o combo!
+            if (ComboManager.Instance != null)
+            {
+                ComboManager.Instance.RegistraAcerto();
+            }
+
             Destroy(collision.gameObject);
             Destroy(gameObject);
         }
         else if (collision.CompareTag("Ground"))
         {
+            // Errou o tiro no chão: quebra a sequência de combo
+            if (ComboManager.Instance != null)
+            {
+                ComboManager.Instance.ResetarCombo();
+            }
+
             Destroy(gameObject);
         }
     }
